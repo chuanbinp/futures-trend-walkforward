@@ -1,0 +1,15 @@
+ticker: PL
+bloomberg: PL
+description: Platinum
+exchange: NYMEX-CME
+currency: USD
+
+point_value: 50
+tick_value: 5
+margin: 1650
+slippage: 148
+pv_multiplier: 1
+
+time_open: 0820
+time_close: 1305
+minutes_per_session: 285

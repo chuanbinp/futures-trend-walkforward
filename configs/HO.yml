@@ -1,0 +1,15 @@
+ticker: HO
+bloomberg: HO
+description: Heating Oil
+exchange: NYMEX-CME
+currency: USD
+
+point_value: 420
+tick_value: 4.2
+margin: 4152
+slippage: 47
+pv_multiplier: 100
+
+time_open: 0900
+time_close: 1430
+minutes_per_session: 330

@@ -1,0 +1,12 @@
+name: futures_trend
+channels:
+  - numba
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numba
+  - numpy
+  - pyyaml
+  # - pip:
+  #   - python-dotenv  # To load your .env configuration
