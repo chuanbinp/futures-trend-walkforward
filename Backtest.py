@@ -1,4 +1,5 @@
 from MarketConfig import MarketConfig
+from OptimConfig import OptimConfig
 import pandas as pd
 import numpy as np
 from time import perf_counter
@@ -78,9 +79,18 @@ def get_period_indices(
 class GridSearchResult:
     result_in_sample: np.ndarray
     result_out_sample: np.ndarray
+    target_in_sample: np.ndarray
     chn_len_values: np.ndarray
     stop_pct_values: np.ndarray
     labels: tuple[str, ...]
+    target_label: str
+    best_i: int
+    best_j: int
+    best_chn_len: int
+    best_stop_pct: float
+    best_target: float
+    best_in_sample_stats: np.ndarray
+    best_out_sample_stats: np.ndarray
     last_equity: np.ndarray
     last_drawdown: np.ndarray
     last_trades: np.ndarray
@@ -400,12 +410,51 @@ def run_grid_search(
             last_chn_len = int(chn_len)
             last_stop_pct = float(stop_pct)
 
+    target_label = "ProfitToAbsWorstDD"
+
+    target_in_sample = np.full(
+        (len(chn_len_values), len(stop_pct_values)),
+        -np.inf,
+        dtype=np.float64,
+    )
+
+    for i in range(len(chn_len_values)):
+        for j in range(len(stop_pct_values)):
+            profit = result_in_sample[i, j, 0]
+            worst_dd = result_in_sample[i, j, 1]
+
+            if worst_dd < 0.0:
+                target_in_sample[i, j] = profit / (-worst_dd)
+            elif profit > 0.0:
+                target_in_sample[i, j] = np.inf
+            else:
+                target_in_sample[i, j] = -np.inf
+
+    best_flat = int(np.argmax(target_in_sample))
+    best_i, best_j = np.unravel_index(best_flat, target_in_sample.shape)
+
+    best_chn_len = int(chn_len_values[best_i])
+    best_stop_pct = float(stop_pct_values[best_j])
+    best_target = float(target_in_sample[best_i, best_j])
+
+    best_in_sample_stats = result_in_sample[best_i, best_j, :].copy()
+    best_out_sample_stats = result_out_sample[best_i, best_j, :].copy()
+
     return GridSearchResult(
         result_in_sample=result_in_sample,
         result_out_sample=result_out_sample,
+        target_in_sample=target_in_sample,
         chn_len_values=chn_len_values,
         stop_pct_values=stop_pct_values,
         labels=labels,
+        target_label=target_label,
+        best_i=int(best_i),
+        best_j=int(best_j),
+        best_chn_len=best_chn_len,
+        best_stop_pct=best_stop_pct,
+        best_target=best_target,
+        best_in_sample_stats=best_in_sample_stats,
+        best_out_sample_stats=best_out_sample_stats,
         last_equity=last_equity,
         last_drawdown=last_drawdown,
         last_trades=last_trades,
@@ -420,7 +469,9 @@ def run_grid_search(
 
 if __name__ == "__main__":
     # Read in config
+    optim_cfg = OptimConfig.from_yaml("./configs/optim.yml")
     cfg = MarketConfig.from_yaml("./configs/PL.yml")
+    print(optim_cfg)
     print(cfg)
 
     # Read in data
@@ -438,7 +489,7 @@ if __name__ == "__main__":
     print(df.tail())
 
     # Calculate bars back
-    bars_back = calculate_bars_back(cfg.minutes_per_session)
+    bars_back = calculate_bars_back(cfg.minutes_per_session, years=optim_cfg.bars_back_years)
 
     # Initialize variables
     in_sample = (datetime(2008, 1, 1), datetime(2018, 12, 31))
@@ -456,8 +507,8 @@ if __name__ == "__main__":
     print(f"Initial equity: {e0}")
 
     # Run grid search
-    chn_len_values = np.arange(10000, 11001, 100, dtype=np.int64)
-    stop_pct_values = np.arange(0.010, 0.0201, 0.002, dtype=np.float64)
+    chn_len_values = optim_cfg.chn_len_values()
+    stop_pct_values = optim_cfg.stop_pct_values()
 
     start = perf_counter()
     result = run_grid_search(
@@ -480,3 +531,23 @@ if __name__ == "__main__":
     print("Out-of-sample shape:", result.result_out_sample.shape)
     print("In-sample indices:", result.ind_in_sample)
     print("Out-of-sample indices:", result.ind_out_sample)
+
+    print("--------------------------------")
+    print("Optimization summary")
+    print("Target:", result.target_label)
+    print("Best ChnLen:", result.best_chn_len)
+    print(f"Best StopPct: {result.best_stop_pct:.4%}")
+    print(f"Best Target: {result.best_target:.6f}")
+
+    print(
+        f"Best IN  -> Profit={result.best_in_sample_stats[0]:,.2f}, "
+        f"DD={result.best_in_sample_stats[1]:,.2f}, "
+        f"Std={result.best_in_sample_stats[2]:,.2f}, "
+        f"Trades={result.best_in_sample_stats[3]:.1f}"
+    )
+    print(
+        f"Best OUT -> Profit={result.best_out_sample_stats[0]:,.2f}, "
+        f"DD={result.best_out_sample_stats[1]:,.2f}, "
+        f"Std={result.best_out_sample_stats[2]:,.2f}, "
+        f"Trades={result.best_out_sample_stats[3]:.1f}"
+    )

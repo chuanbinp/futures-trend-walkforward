@@ -58,3 +58,20 @@ class MarketConfig:
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
+
+    
+    def __str__(self) -> str:
+        return (
+            "MarketConfig:\n"
+            f"  ticker={self.ticker}, bloomberg={self.bloomberg},\n"
+            f"  description={self.description},\n"
+            f"  exchange={self.exchange}, currency={self.currency},\n"
+            f"  point_value={self.point_value:,.4f}, "
+            f"  tick_value={self.tick_value:,.4f}, "
+            f"  pv_multiplier={self.pv_multiplier:,.4f},\n"
+            f"  slippage={self.slippage:,.4f}, "
+            f"  margin={self.margin:,.2f},\n"
+            f"  session={self.time_open.strftime('%H:%M')} - "
+            f"{self.time_close.strftime('%H:%M')} "
+            f"({self.minutes_per_session} min)\n"
+        )
