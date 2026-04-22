@@ -4,6 +4,7 @@ from MarketConfig import MarketConfig
 import pandas as pd
 import numpy as np
 from datetime import time, datetime
+from time import perf_counter
 from math import ceil
 from dataclasses import dataclass
 from numba import njit
@@ -104,19 +105,37 @@ def rolling_hh_ll(
     hh = np.zeros(n, dtype=np.float64)
     ll = np.zeros(n, dtype=np.float64)
 
-    for k in range(bars_back, n):
-        start = k - chn_len
-        hmax = high[start]
-        lmin = low[start]
+    maxdq = np.empty(n, dtype=np.int64)
+    mindq = np.empty(n, dtype=np.int64)
 
-        for i in range(start + 1, k):
-            if high[i] > hmax:
-                hmax = high[i]
-            if low[i] < lmin:
-                lmin = low[i]
+    max_head = 0
+    max_tail = 0
+    min_head = 0
+    min_tail = 0
 
-        hh[k] = hmax
-        ll[k] = lmin
+    for t in range(n):
+        while max_tail > max_head and high[t] >= high[maxdq[max_tail - 1]]:
+            max_tail -= 1
+        maxdq[max_tail] = t
+        max_tail += 1
+
+        while min_tail > min_head and low[t] <= low[mindq[min_tail - 1]]:
+            min_tail -= 1
+        mindq[min_tail] = t
+        min_tail += 1
+
+        if t >= chn_len:
+            window_start = t - chn_len + 1
+
+            while max_tail > max_head and maxdq[max_head] < window_start:
+                max_head += 1
+            while min_tail > min_head and mindq[min_head] < window_start:
+                min_head += 1
+
+            k = t + 1
+            if k < n and k >= bars_back:
+                hh[k] = high[maxdq[max_head]]
+                ll[k] = low[mindq[min_head]]
 
     return hh, ll
 
@@ -442,6 +461,7 @@ if __name__ == "__main__":
     chn_len_values = np.arange(10000, 11001, 100, dtype=np.int64)
     stop_pct_values = np.arange(0.010, 0.0201, 0.002, dtype=np.float64)
 
+    start = perf_counter()
     result = run_grid_search(
         df=df,
         in_sample=in_sample,
@@ -453,9 +473,11 @@ if __name__ == "__main__":
         chn_len_values=chn_len_values,
         stop_pct_values=stop_pct_values,
     )
+    end = perf_counter()
 
     print("--------------------------------")
     print("Completed grid search")
+    print(f"Elapsed time: {end - start} seconds")
     print("In-sample shape:", result.result_in_sample.shape)
     print("Out-of-sample shape:", result.result_out_sample.shape)
     print("In-sample indices:", result.ind_in_sample)
